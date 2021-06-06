@@ -1,15 +1,45 @@
+/**
+ * LED track switch puzzle
+ * Copyright (c) 2020 Alastair Aitchison, Playful Technology
+ *
+ * Strips of WS2812 LEDs appear to be laid out on multiple segments of a branching track.
+ * LED particles are spawned at regular intervals at one end and advance down the track.
+ * There are toggle switches placed at each point where the track branches, and by pushing a
+ * switch one way or the other, players can select which branch the particles take (like on a railway).
+ *
+ * Particles come in several different types - each with a corresponding colour and length.
+ * Players must guide particles down the tracks to the correct end points. Once every end point has received
+ * three particles of the correct colour, the puzzle is solved (which can activate a relay etc.)
+ *
+ * The following illustrates the way in which the LEDs are laid out. Numbers in [brackets] are the sequential position
+ * of the LED on the strip, which is how they are addressed in the leds array. The scale along the top is the
+ * "distance travelled" along the track to reach that point.
+ *
+ * Distance Travelled
+ *  0   1   2   3   4   5   6   7    8    9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30   31   32   33   34   35   36   37
+ *                                                                                                                                                                              (Track 4)
+ *                                                                     [25] [26] [27] [28] [29] [30] [31] [32] [33] [34] [35] [36] [37] [38] [39] [40] [41] [42] [43] [44] [45] [46] [47]
+ *                                                                    /
+ *                             [12] [13] [14] [15] [16] [17] [18] [19] (Switch 3)
+ *                            /                                       \               (Track 3)                               (Track 2)
+ *                           /                                         [20] [21] [22] [23] [24]                          [50] [49] [48]
+ * [0] [1] [2] [3] [4] [5] [6] (Switch 0)                                                                               /
+ *                           \                                    [61] [60] [59] [58] [57] [56] [55] [54] [53] [52] [51] (Switch 2)
+ *                            \                                  /                                                      \                    (Track 1)
+ *                             [11] [10]  [9]  [8]  [7] [63] [62] (Switch 1)                                             [92] [91] [90] [89] [88] [87]
+ *                                                               \                                                                                                         (Track 0)
+ *                                                                [64] [65] [66] [67] [68] [69] [70] [71] [72] [73] [74] [75] [76] [77] [78] [79] [80] [81] [82] [83] [84] [85] [86]
+ */
+
 // INCLUDES
 // Library for addressable LED strips. Download from https://github.com/FastLED/FastLED/releases
 #include <FastLED.h>
 
 // DEFINES
-#define LED_DIGITAL_PIN 0
-
 // The total number of LEDs across all track segments
-#define NUM_LEDS 134
-
+#define NUM_LEDS 93
 // The greatest number of LEDs on any given track down which a particle can travel
-#define MAX_NUM_LEDS_PER_TRACK 55
+#define MAX_NUM_LEDS_PER_TRACK 40
  
 // STRUCTS
 // We'll define a structure to keep all the related properties of an LED particle together
@@ -36,30 +66,30 @@ const byte numSwitchPins = 4;
 // The GPIO pins to which switches are attached
 const byte switchPins[numSwitchPins] = { 2, 3, 4, 5 };
 // The maximum number of particles that will be alive at any one time
-const byte maxParticles = 15;
+const byte maxParticles = 10;
 // Number of milliseconds between each particle being spawned
 const int _rate = 5000;
 // How many different types of particle are there?
 const byte numParticleTypes = 5;
 // Define a colour associated with each type of particle
-const CRGB colours[numParticleTypes] = { CRGB::Orange, CRGB::Green, CRGB::Yellow, CRGB::Blue, CRGB::Purple };
+const CRGB colours[numParticleTypes] = { CRGB::Red, CRGB::Green, CRGB::Yellow, CRGB::Blue, CRGB::White };
 // Specify the order in which LEDs are traversed down each possible track from start to finish. -1 indicates beyond the end of the track
 const unsigned int ledTrack[numParticleTypes][MAX_NUM_LEDS_PER_TRACK] = {
   // LHS
-  {0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  19,  18,  17,  16,  15,  14,  13,  12,  97,  98,  99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125,  -1,  -1,  -1,  -1,  -1,  -1},
-  {0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  19,  18,  17,  16,  15,  14,  13,  12,  97,  98,  99, 100, 101, 102,  96,  95,  94,  93,  92,  91,  90,  89,  88,  87,  86,  85,  84,  83,  82, 134, 133, 132, 131, 130, 129, 128, 127, 126,  -1,  -1,  -1,  -1,  -1},
-  {0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  19,  18,  17,  16,  15,  14,  13,  12,  97,  98,  99, 100, 101, 102,  96,  95,  94,  93,  92,  91,  90,  89,  88,  87,  86,  85,  84,  83,  82,  81,  80,  79,  78,  77,  76,  75,  74,  73,  72,  -1,  -1,  -1,  -1},
-  {0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  20,  21,  22,  23,  24,  25,  26,  27,  28,  29,  30,  31,  32,  33,  34,  35,  36,  37,  38,  39,  40,  41,  42,  43,  44,  45,  46,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1},
-  {0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  20,  21,  22,  23,  24,  25,  26,  27,  28,  29,  30,  31,  32,  33,  34,  35,  36,  47,  48,  49,  50,  51,  52,  53,  54,  55,  56,  57,  58,  59,  60,  61,  62,  63,  64,  65,  66,  67,  68,  69,  70,  71,  -1}
+  {0,  1,  2,  3,  4,  5,  6, 11, 10,  9,  8,  7, 63, 62, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, -1, -1, -1},
+  {0,  1,  2,  3,  4,  5,  6, 11, 10,  9,  8,  7, 63, 62, 61, 60, 59, 58, 57, 56, 55, 54, 53, 52, 51, 92, 91, 90, 89, 88, 87, -1, -1, -1, -1, -1, -1, -1, -1, -1},
+  {0,  1,  2,  3,  4,  5,  6, 11, 10,  9,  8,  7, 63, 62, 61, 60, 59, 58, 57, 56, 55, 54, 53, 52, 51, 50, 49, 48, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
+  {0,  1,  2,  3,  4,  5,  6, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
+  {0,  1,  2,  3,  4,  5,  6, 12, 13, 14, 15, 16, 17, 18, 19, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, -1, -1}
   // RHS
 };
 // Specify which LEDs should be used as a score counter for each track
-const unsigned int scoreLEDs[numParticleTypes][4] = {
-  {125, 124, 123, 122},
-  {126, 127, 128, 129},
-  {72, 73, 74, 75},
-  {46, 45, 44, 43},
-  {71, 70, 69, 68}
+const unsigned int scoreLEDs[numParticleTypes][3] = {
+  {86, 85, 84},
+  {87, 88, 89},
+  {48, 49, 50},
+  {24, 23, 22},
+  {47, 46, 45}
 };
 
 // GLOBALS
@@ -73,7 +103,29 @@ unsigned long _lastSpawned = 0;
 // and re-use them
 Particle particlePool[maxParticles];
 
-// Custom functions
+// Initial setup
+void setup() {
+  // Start a serial connection
+  Serial.begin(9600);
+
+  // Initialise the LED strip, specifying the type of LEDs and the pin connected to the data line
+  FastLED.addLeds<WS2812, A0, GRB>(leds, NUM_LEDS);
+
+  // Instantiate a reusable pool of particles
+  for(int i=0; i<maxParticles; i++) {
+    // Type, position, speed, length, track, alive all set to default values
+    particlePool[i] = Particle{0, 0, 0, 0, 0, false};
+  }
+
+  // Initialise all the input pins
+  for(int i=0; i<numSwitchPins; i++){
+    pinMode(switchPins[i], INPUT_PULLUP);
+  }
+
+  // Set a random seed by reading the input value of an (unconnected) analog pin
+  randomSeed(analogRead(A5));
+}
+
 // This function sets the correct LEDs for a particular particle on the track
 int setLEDs(Particle p){
   // Convert the colour into a HSV value so that it can be dimmed without changing hue
@@ -126,6 +178,7 @@ void spawnParticle(){
 // This function is triggered when every track has a maximum score
 // Use it to activate a relay/release a maglock etc.
 void onSolve() {
+
   while(true) {
     // Eight colored dots, weaving in and out of sync with each other
     fadeToBlackBy(leds, NUM_LEDS, 20);
@@ -141,58 +194,15 @@ void onSolve() {
   }
 }
 
-// Arduino functions
-
-// Initial setup
-void setup() {
-  // Start a serial connection
-  Serial.begin(9600);
-
-  // Initialise the LED strip, specifying the type of LEDs and the pin connected to the data line
-  FastLED.addLeds<WS2812B, LED_DIGITAL_PIN, GRB>(leds, NUM_LEDS);
-
-/*
-  // Instantiate a reusable pool of particles
-  for(int i=0; i<maxParticles; i++) {
-    // Type, position, speed, length, track, alive all set to default values
-    particlePool[i] = Particle{0, 0, 0, 0, 0, false};
-  }
-
-  // Initialise all the input pins
-  for(int i=0; i<numSwitchPins; i++){
-    pinMode(switchPins[i], INPUT_PULLUP);
-  }
-
-  // Set a random seed by reading the input value of an (unconnected) analog pin
-  randomSeed(analogRead(A5));
-  */
-}
-
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  
-  // Move a single white led 
-   for(int whiteLed = 0; whiteLed < NUM_LEDS; whiteLed++) {
-      // Turn our current led on to white, then show the leds
-      leds[whiteLed] = CRGB::White;
 
-      // Show the leds (only one of which is set to white, from above)
-      FastLED.show();
-
-      // Wait a little bit
-      delay(100);
-
-      // Turn our current led back to black for the next loop around
-      leds[whiteLed] = CRGB::Black;
-   }
-/*
   // For debug use only, print out the state of each toggle switch
   for(int i=0; i<numSwitchPins; i++){
-    //Serial.print(digitalRead(switchPins[i]));
-    //if(i<numSwitchPins-1) { Serial.print(","); }
+    Serial.print(digitalRead(switchPins[i]));
+    if(i<numSwitchPins-1) { Serial.print(","); }
   }
-  //Serial.println("");
+  Serial.println("");
  
   // Clear the LEDs
   FastLED.clear();
@@ -214,19 +224,19 @@ void loop() {
     if(particlePool[i].alive){
 
       // If the particle is on one of the switch points, change track as appropriate
-      if(particlePool[i].position/16 == 11) {
+      if(particlePool[i].position/16 == 6) {
         particlePool[i].track = (digitalRead(switchPins[0])) ? 0 : 3;
       }
       // If we took a left at the first junction then we come across the next switch after 13 LEDs
-      if(particlePool[i].position/16 == 25 && particlePool[i].track < 2) {
+      if(particlePool[i].position/16 == 13 && particlePool[i].track < 2) {
         particlePool[i].track = (digitalRead(switchPins[1])) ? 0 : 1;
       }
       // If we took a right at the first junction then we come aross the next switch after 14 LEDs
-      if(particlePool[i].position/16 == 28 && particlePool[i].track >= 2) {
+      if(particlePool[i].position/16 == 14 && particlePool[i].track >= 2) {
         particlePool[i].track = (digitalRead(switchPins[2])) ? 3 : 4;
       }
       // If we went left, then right, there's a final junction after 24 LEDs
-      if(particlePool[i].position/16 == 40 && particlePool[i].track == 1) {
+      if(particlePool[i].position/16 == 24 && particlePool[i].track == 1) {
         particlePool[i].track = (digitalRead(switchPins[3])) ? 1 : 2;
       }
 
@@ -272,5 +282,4 @@ void loop() {
   // Update the LED display with the new data
   FastLED.show();
   FastLED.delay(20);
-  */
 }
