@@ -36,6 +36,15 @@
 #include <FastLED.h>
 
 // DEFINES
+// Arduino pin wires
+#define LED_DIGITAL_PIN 2
+#define SWITCH_ONE_DIGITAL_PIN 3
+#define SWITCH_TWO_DIGITAL_PIN 4
+#define SWITCH_THREE_DIGITAL_PIN 5
+#define SWITCH_FOUR_DIGITAL_PIN 6
+
+#define NUMBER_OF_SWITCHS 4
+
 // The total number of LEDs across all track segments
 #define NUM_LEDS 93
 // The greatest number of LEDs on any given track down which a particle can travel
@@ -61,10 +70,8 @@ struct Particle {
 };
 
 // CONSTANTS
-// How many switch points are there in the track
-const byte numSwitchPins = 4;
 // The GPIO pins to which switches are attached
-const byte switchPins[numSwitchPins] = { 2, 3, 4, 5 };
+const byte switchPins[NUMBER_OF_SWITCHS] = { SWITCH_ONE_DIGITAL_PIN, SWITCH_TWO_DIGITAL_PIN, SWITCH_THREE_DIGITAL_PIN, SWITCH_FOUR_DIGITAL_PIN };
 // The maximum number of particles that will be alive at any one time
 const byte maxParticles = 10;
 // Number of milliseconds between each particle being spawned
@@ -109,7 +116,7 @@ void setup() {
   Serial.begin(9600);
 
   // Initialise the LED strip, specifying the type of LEDs and the pin connected to the data line
-  FastLED.addLeds<WS2812, A0, GRB>(leds, NUM_LEDS);
+  FastLED.addLeds<WS2812, LED_DIGITAL_PIN, GRB>(leds, NUM_LEDS);
 
   // Instantiate a reusable pool of particles
   for(int i=0; i<maxParticles; i++) {
@@ -118,7 +125,7 @@ void setup() {
   }
 
   // Initialise all the input pins
-  for(int i=0; i<numSwitchPins; i++){
+  for(int i=0; i<NUMBER_OF_SWITCHS; i++){
     pinMode(switchPins[i], INPUT_PULLUP);
   }
 
@@ -156,12 +163,20 @@ int setLEDs(Particle p){
   }
 }
 
-// Spawn a new particle
 void spawnParticle(){
-  // Loop over every element in the particle pool
+  Serial.println("\n\nSPAWN PARTICLE INVOKED");
+  // Loop over every element in the particle pool  
   for(int i=0; i<maxParticles; i++){
+    Serial.print("Spawn Particle [");
+    Serial.print(i);
+    Serial.print("] ");
+     
     // If this particle is not currently alive
+    Serial.print(" isAlive ");
+       Serial.print(particlePool[i].alive);
     if(!particlePool[i].alive){
+      Serial.print(", position ");
+      Serial.print(particlePool[i].position);
       // Reset it as a new particle
       particlePool[i].position = 0;
       particlePool[i].speed = 1;
@@ -198,9 +213,9 @@ void onSolve() {
 void loop() {
 
   // For debug use only, print out the state of each toggle switch
-  for(int i=0; i<numSwitchPins; i++){
+  for(int i=0; i<NUMBER_OF_SWITCHS; i++){
     Serial.print(digitalRead(switchPins[i]));
-    if(i<numSwitchPins-1) { Serial.print(","); }
+    if(i<NUMBER_OF_SWITCHS-1) { Serial.print(","); }
   }
   Serial.println("");
  
