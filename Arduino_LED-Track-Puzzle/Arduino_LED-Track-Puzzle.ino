@@ -167,9 +167,9 @@ void spawnParticle(){
   Serial.println("\n\nSPAWN PARTICLE INVOKED");
   // Loop over every element in the particle pool  
   for(int i=0; i<maxParticles; i++){
-    Serial.print("Spawn Particle [");
+    Serial.println("Spawn Particle [");
     Serial.print(i);
-    Serial.print("] ");
+    Serial.print("],");
      
     // If this particle is not currently alive
     Serial.print(" isAlive ");
